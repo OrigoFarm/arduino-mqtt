@@ -65,9 +65,11 @@ class MQTTClient {
 
   uint16_t keepAlive = 10;
   bool cleanSession = true;
-  uint32_t timeout = 1000;
+  uint32_t timeout = 5000;
 
   Client *netClient = nullptr;
+  Stream *serialClient = nullptr;
+  
   const char *hostname = nullptr;
   int port = 0;
   lwmqtt_will_t will = lwmqtt_default_will;
@@ -75,6 +77,7 @@ class MQTTClient {
   MQTTClientCallback callback;
 
   lwmqtt_arduino_network_t network = {nullptr};
+  lwmqtt_arduino_stream_t stream = {nullptr};
   lwmqtt_arduino_timer_t timer1 = {0};
   lwmqtt_arduino_timer_t timer2 = {0};
   lwmqtt_client_t client;
@@ -112,6 +115,25 @@ class MQTTClient {
 
     // set network
     lwmqtt_set_network(&this->client, &this->network, lwmqtt_arduino_network_read, lwmqtt_arduino_network_write);
+
+    // set callback
+    lwmqtt_set_callback(&this->client, (void *)&this->callback, MQTTClientHandler);
+  }
+
+  void begin(const char hostname[], int port, Stream &client) {
+    // set config
+    this->hostname = hostname;
+    this->port = port;
+    this->serialClient = &client;
+
+    // initialize client
+    lwmqtt_init(&this->client, this->writeBuf, this->bufSize, this->readBuf, this->bufSize);
+
+    // set timers
+    lwmqtt_set_timers(&this->client, &this->timer1, &this->timer2, lwmqtt_arduino_timer_set, lwmqtt_arduino_timer_get);
+
+    // set network
+    lwmqtt_set_network(&this->client, &this->stream, lwmqtt_arduino_stream_read, lwmqtt_arduino_stream_write);
 
     // set callback
     lwmqtt_set_callback(&this->client, (void *)&this->callback, MQTTClientHandler);
@@ -169,11 +191,14 @@ class MQTTClient {
     }
 
     // save client
-    this->network.client = this->netClient;
-
-    // connect to host
-    if (this->netClient->connect(this->hostname, (uint16_t)this->port) < 0) {
-      return false;
+    if (this->netClient != nullptr){
+      this->network.client = this->netClient;
+      // connect to host
+      if (this->netClient->connect(this->hostname, (uint16_t)this->port) < 0) {
+        return false;
+      }
+    } else {
+      this->stream.serial = this->serialClient;
     }
 
     // prepare options
@@ -315,17 +340,22 @@ class MQTTClient {
       return false;
     }
 
+    int available;
     // get available bytes on the network
-    auto available = (size_t)this->netClient->available();
+    if (this->netClient != nullptr){
+      available = (size_t)this->netClient->available();
+    } else {
+      available = (size_t)this->serialClient->available();
+    }
 
     // yield if data is available
     if (available > 0) {
       this->_lastError = lwmqtt_yield(&this->client, available, this->timeout);
       if (this->_lastError != LWMQTT_SUCCESS) {
-        // close connection
-        this->close();
+      // close connection
+      this->close();
 
-        return false;
+      return false;
       }
     }
 
@@ -344,7 +374,11 @@ class MQTTClient {
   bool connected() {
     // a client is connected if the network is connected, a client is available and
     // the connection has been properly initiated
-    return this->netClient != nullptr && this->netClient->connected() == 1 && this->_connected;
+    if (this->netClient != nullptr){
+      return this->netClient != nullptr && this->netClient->connected() == 1 && this->_connected;
+    } else{
+      return this->serialClient != nullptr && this->_connected;
+    }
   }
 
   lwmqtt_err_t lastError() { return this->_lastError; }

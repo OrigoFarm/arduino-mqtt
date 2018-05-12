@@ -20,7 +20,14 @@ typedef struct {
   Client *client;
 } lwmqtt_arduino_network_t;
 
+typedef struct {
+  Stream *serial;
+} lwmqtt_arduino_stream_t;
+
 lwmqtt_err_t lwmqtt_arduino_network_read(void *ref, uint8_t *buf, size_t len, size_t *read, uint32_t timeout);
 lwmqtt_err_t lwmqtt_arduino_network_write(void *ref, uint8_t *buf, size_t len, size_t *sent, uint32_t timeout);
+
+lwmqtt_err_t lwmqtt_arduino_stream_read(void *ref, uint8_t *buf, size_t len, size_t *read, uint32_t timeout);
+lwmqtt_err_t lwmqtt_arduino_stream_write(void *ref, uint8_t *buf, size_t len, size_t *sent, uint32_t timeout);
 
 #endif  // LWMQTT_ARDUINO_H

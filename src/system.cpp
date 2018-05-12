@@ -46,3 +46,33 @@ lwmqtt_err_t lwmqtt_arduino_network_write(void *ref, uint8_t *buffer, size_t len
 
   return LWMQTT_SUCCESS;
 }
+
+lwmqtt_err_t lwmqtt_arduino_stream_read(void *ref, uint8_t *buffer, size_t len, size_t *read, uint32_t timeout) {
+  // cast network reference
+  auto n = (lwmqtt_arduino_stream_t *)ref;
+
+  // set timeout
+  n->serial->setTimeout(timeout);
+
+  // read bytes
+  *read = n->serial->readBytes(buffer, len);
+  if (*read <= 0) {
+    return LWMQTT_NETWORK_FAILED_READ;
+  }
+
+  return LWMQTT_SUCCESS;
+}
+
+lwmqtt_err_t lwmqtt_arduino_stream_write(void *ref, uint8_t *buffer, size_t len, size_t *sent, uint32_t /*timeout*/) {
+  // cast network reference
+  auto n = (lwmqtt_arduino_stream_t *)ref;
+
+  // write bytes
+  *sent = n->serial->write(buffer, len);
+
+  if (*sent <= 0) {
+    return LWMQTT_NETWORK_FAILED_WRITE;
+  };
+
+  return LWMQTT_SUCCESS;
+}
